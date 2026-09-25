@@ -69,7 +69,8 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/vps-profile.sh" list
 
 If no profile fits, direct the user to the `vps-profiles` skill to create
 one before continuing — never ask the user to paste a password or private
-key directly into this conversation (see that skill's Step 2 for why).
+key directly into this conversation (see that skill's "Add a profile"
+section for why).
 
 ## Step 4: Run the deploy
 

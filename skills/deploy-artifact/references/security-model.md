@@ -11,7 +11,7 @@ from `claude.ai`. Both are treated as adversarial by default.
 | LLM01 Prompt Injection | Artifact content is read once via the `Artifact` tool and never re-interpreted as instructions; the skill never executes fetched HTML/JS/markdown. | `deploy-artifact` SKILL.md, Step 2 |
 | LLM02 Insecure Output Handling | Deploy scripts never `eval` input; all paths and hostnames pass through `scripts/lib/validate.sh` before use in a shell command. | `validate.sh` |
 | LLM06 Sensitive Information Disclosure | Secrets are never constructed into a Bash tool call, never printed to stdout, never written to a plaintext config file. Only a profile *name* lives outside the keychain. | `scripts/lib/keychain.sh`, `scripts/vps-profile.sh` |
-| LLM08 Excessive Agency | The skill asks before overwriting a destination and before removing a profile; it never auto-selects a deploy target. | `deploy-artifact` SKILL.md, Step 3 |
+| LLM08 Excessive Agency | The skill asks before overwriting a destination and before removing a profile; it never auto-selects a deploy target. | `deploy-artifact` SKILL.md, Step 3; `vps-profiles` SKILL.md, "Remove a profile" |
 | Supply chain / SSRF-adjacent | Artifact URLs are restricted to `https://claude.ai/(code/)?artifact/...`; VPS hosts are validated as a hostname or IPv4 literal before use. | `validate.sh` |
 
 ## Why secrets never pass through the conversation
