@@ -164,7 +164,7 @@ New skill, `deployments`, alongside the extended `deploy-artifact` and
 
 ## Plugin file structure
 
-```
+```text
 skills/
   deploy-artifact/       existing, extended: capability-check, slug
                           selection/collision handling, base-href
