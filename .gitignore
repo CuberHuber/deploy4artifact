@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 CuberHuber
+# SPDX-License-Identifier: MIT
+
+# OS cruft
+.DS_Store
+
+# Local plugin settings (never commit real credentials or per-user overrides)
+.claude/*.local.md
+
+# Tooling
+node_modules/
+*.log
+
+# deploy4artifact runtime state (profile registry, known_hosts) must never
+# be committed — it belongs in $D4A_HOME (~/.deploy4artifact), not the repo
+.deploy4artifact/

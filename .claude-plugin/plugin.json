@@ -1,0 +1,20 @@
+{
+  "name": "deploy4artifact",
+  "version": "0.1.0",
+  "description": "Deploy a published Claude artifact to a local path or a remote VPS over SSH, with all credentials kept in the OS keychain.",
+  "author": {
+    "name": "CuberHuber",
+    "url": "https://github.com/CuberHuber"
+  },
+  "homepage": "https://github.com/CuberHuber/deploy4artifact",
+  "repository": "https://github.com/CuberHuber/deploy4artifact",
+  "license": "MIT",
+  "keywords": [
+    "deploy",
+    "artifact",
+    "vps",
+    "ssh",
+    "keychain",
+    "security"
+  ]
+}

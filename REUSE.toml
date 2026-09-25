@@ -1,0 +1,9 @@
+version = 1
+SPDX-PackageName = "deploy4artifact"
+SPDX-PackageSupplier = "CuberHuber"
+SPDX-PackageDownloadLocation = "https://github.com/CuberHuber/deploy4artifact"
+
+[[annotations]]
+path = ["**/*.md", "**/*.json", "LICENSE.txt"]
+SPDX-FileCopyrightText = "2026 CuberHuber"
+SPDX-License-Identifier = "MIT"

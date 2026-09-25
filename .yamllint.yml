@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 CuberHuber
+# SPDX-License-Identifier: MIT
+extends: default
+rules:
+  line-length:
+    max: 120
+  document-start: disable
+  truthy: disable
