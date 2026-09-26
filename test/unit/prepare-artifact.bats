@@ -81,3 +81,11 @@ teardown() {
   [ "$status" -ne 0 ]
   [ ! -e "$STAGE" ]
 }
+
+@test "refuses a multi-level new staging path inside the fetched artifact without creating it" {
+  printf '<head></head>\n' > "$SRC/index.html"
+  run bash "$SCRIPT" "$SRC" demo "$SRC/nested/deep/stage"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must not be inside the fetched artifact"* ]]
+  [ ! -e "$SRC/nested" ]
+}

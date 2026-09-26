@@ -52,7 +52,15 @@ main() {
       || d4a_die "staging directory must be new or empty: $staging"
   fi
   src_abs="$(cd "$src" && pwd -P)"
-  case "$(cd "$(dirname "$staging")" 2>/dev/null && pwd -P)/$(basename "$staging")/" in
+  local probe rest staging_resolved
+  probe="$staging"
+  rest=""
+  while [[ ! -d "$probe" ]]; do
+    rest="/$(basename "$probe")$rest"
+    probe="$(dirname "$probe")"
+  done
+  staging_resolved="$(cd "$probe" && pwd -P)$rest"
+  case "$staging_resolved/" in
     "$src_abs/"*) d4a_die "the staging directory must not be inside the fetched artifact" ;;
     *) ;;
   esac
