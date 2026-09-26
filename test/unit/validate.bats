@@ -89,3 +89,62 @@ setup() {
   run d4a_validate_remote_path "/bin"
   [ "$status" -ne 0 ]
 }
+
+@test "accepts a valid slug" {
+  run d4a_validate_slug "my-artifact-2"
+  [ "$status" -eq 0 ]
+}
+
+@test "rejects slugs with uppercase, underscores, or edge dashes" {
+  run d4a_validate_slug "My"
+  [ "$status" -ne 0 ]
+  run d4a_validate_slug "a_b"
+  [ "$status" -ne 0 ]
+  run d4a_validate_slug "-a"
+  [ "$status" -ne 0 ]
+  run d4a_validate_slug "a-"
+  [ "$status" -ne 0 ]
+}
+
+@test "rejects a 64-character slug" {
+  run d4a_validate_slug "$(printf 'a%.0s' {1..64})"
+  [ "$status" -ne 0 ]
+}
+
+@test "derives a slug from an artifact id" {
+  run d4a_slug_from_id "Abc_DEF--123"
+  [ "$status" -eq 0 ]
+  [ "$output" = "abc-def-123" ]
+}
+
+@test "caps a derived slug at 63 characters without a trailing dash" {
+  run d4a_slug_from_id "$(printf 'a%.0s' {1..62})_zzz"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(printf 'a%.0s' {1..62})" ]
+}
+
+@test "refuses to derive a slug from punctuation only" {
+  run d4a_slug_from_id "___"
+  [ "$status" -ne 0 ]
+}
+
+@test "accepts a lowercase domain" {
+  run d4a_validate_domain "d4a.example.com"
+  [ "$status" -eq 0 ]
+}
+
+@test "rejects an IP address, a bare hostname, and uppercase as a domain" {
+  run d4a_validate_domain "203.0.113.5"
+  [ "$status" -ne 0 ]
+  run d4a_validate_domain "localhost"
+  [ "$status" -ne 0 ]
+  run d4a_validate_domain "Example.com"
+  [ "$status" -ne 0 ]
+}
+
+@test "accepts a plausible email and rejects a non-email" {
+  run d4a_validate_email "ops+certs@example.com"
+  [ "$status" -eq 0 ]
+  run d4a_validate_email "not-an-email"
+  [ "$status" -ne 0 ]
+}
