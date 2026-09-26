@@ -12,7 +12,6 @@ set -euo pipefail
 : "${D4A_REMOTE_ROOT:=/srv/deploy4artifact}"
 : "${D4A_HEALTH_WAIT:=30}"
 D4A_TRAEFIK_IMAGE="traefik:v3"
-# shellcheck disable=SC2034 # consumed by Task 7's run-script generator appended to this file
 D4A_NGINX_IMAGE="nginx:stable-alpine"
 
 d4a_validate_remote_root() {
@@ -115,5 +114,109 @@ docker run -d --name d4a-traefik --restart unless-stopped \
   --certificatesresolvers.le.acme.httpchallenge.entrypoint=web >/dev/null
 docker network connect d4a-internal d4a-traefik
 echo "traefik=started"
+EOF
+}
+
+d4a_gen_run_script() {
+  local slug="$1" domain="$2"
+  d4a_validate_slug "$slug"
+  d4a_validate_domain "$domain"
+  d4a_validate_remote_root
+  [[ "$D4A_HEALTH_WAIT" =~ ^[0-9]{1,3}$ ]] || d4a_die "invalid D4A_HEALTH_WAIT: $D4A_HEALTH_WAIT"
+  _d4a_gen_header "SLUG=$slug" "DOMAIN=$domain" "D4A_ROOT=$D4A_REMOTE_ROOT" \
+    "NGINX_IMAGE=$D4A_NGINX_IMAGE" "HEALTH_WAIT=$D4A_HEALTH_WAIT"
+  _d4a_gen_docker_guard
+  cat <<'EOF'
+name="d4a-$SLUG"
+r="$name"
+dir="$D4A_ROOT/artifacts/$SLUG"
+[ -d "$dir" ] || { echo "artifact directory missing on the VPS: $dir" >&2; exit 1; }
+chmod -R a+rX "$dir"
+docker rm -f "$name" >/dev/null 2>&1 || true
+docker run -d --name "$name" --restart unless-stopped \
+  --network d4a-internal \
+  --security-opt no-new-privileges \
+  -v "$dir:/usr/share/nginx/html:ro" \
+  --health-cmd 'wget -q --spider http://127.0.0.1/ || exit 1' \
+  --health-interval 5s --health-timeout 3s --health-retries 3 \
+  --label d4a.managed=true \
+  --label "d4a.slug=$SLUG" \
+  --label traefik.enable=true \
+  --label traefik.docker.network=d4a-internal \
+  --label "traefik.http.routers.$r.rule=Host(\`$DOMAIN\`) && PathPrefix(\`/d4a/a/$SLUG/\`)" \
+  --label "traefik.http.routers.$r.entrypoints=websecure" \
+  --label "traefik.http.routers.$r.tls.certresolver=le" \
+  --label "traefik.http.routers.$r.middlewares=$r-strip" \
+  --label "traefik.http.routers.$r.service=$r" \
+  --label "traefik.http.middlewares.$r-strip.stripprefix.prefixes=/d4a/a/$SLUG" \
+  --label "traefik.http.routers.$r-slash.rule=Host(\`$DOMAIN\`) && Path(\`/d4a/a/$SLUG\`)" \
+  --label "traefik.http.routers.$r-slash.entrypoints=websecure" \
+  --label "traefik.http.routers.$r-slash.tls.certresolver=le" \
+  --label "traefik.http.routers.$r-slash.middlewares=$r-addslash" \
+  --label "traefik.http.routers.$r-slash.service=$r" \
+  --label "traefik.http.middlewares.$r-addslash.redirectregex.regex=^(https://[^/]+/d4a/a/$SLUG)\$" \
+  --label "traefik.http.middlewares.$r-addslash.redirectregex.replacement=\${1}/" \
+  --label "traefik.http.middlewares.$r-addslash.redirectregex.permanent=true" \
+  --label "traefik.http.services.$r.loadbalancer.server.port=80" \
+  "$NGINX_IMAGE" >/dev/null
+status=""
+i=0
+while [ "$i" -lt "$HEALTH_WAIT" ]; do
+  status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name")"
+  if [ "$status" = healthy ]; then
+    echo "container=healthy"
+    exit 0
+  fi
+  i=$((i + 1))
+  sleep 1
+done
+echo "container $name did not become healthy within ${HEALTH_WAIT}s (last status: ${status:-none})" >&2
+docker logs --tail 20 "$name" >&2 || true
+exit 1
+EOF
+}
+
+d4a_gen_remove_script() {
+  local slug="$1"
+  d4a_validate_slug "$slug"
+  d4a_validate_remote_root
+  _d4a_gen_header "SLUG=$slug" "D4A_ROOT=$D4A_REMOTE_ROOT"
+  _d4a_gen_docker_guard
+  cat <<'EOF'
+name="d4a-$SLUG"
+if docker inspect "$name" >/dev/null 2>&1; then
+  managed="$(docker inspect -f '{{index .Config.Labels "d4a.managed"}}' "$name")"
+  if [ "$managed" != true ]; then
+    echo "refusing to remove $name: it was not created by deploy4artifact" >&2
+    exit 1
+  fi
+  docker rm -f "$name" >/dev/null
+fi
+rm -rf -- "$D4A_ROOT/artifacts/$SLUG"
+echo "removed=$SLUG"
+EOF
+}
+
+d4a_gen_list_script() {
+  _d4a_gen_header
+  _d4a_gen_docker_guard
+  cat <<'EOF'
+docker ps -a --filter label=d4a.managed=true --filter label=d4a.slug \
+  --format '{{.Label "d4a.slug"}}\t{{.Status}}'
+EOF
+}
+
+d4a_gen_health_script() {
+  local slug="$1"
+  d4a_validate_slug "$slug"
+  _d4a_gen_header "SLUG=$slug"
+  _d4a_gen_docker_guard
+  cat <<'EOF'
+name="d4a-$SLUG"
+if docker inspect "$name" >/dev/null 2>&1; then
+  docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$name"
+else
+  echo "missing"
+fi
 EOF
 }
