@@ -23,6 +23,31 @@ teardown() {
   [ "$(cat "$STUB_LOG/ssh.stdin.1")" = "echo hi" ]
 }
 
+@test "d4a_remote_open hands ssh the multi-line key intact, not hex" {
+  _d4a_stub ssh <<'EOF'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+  if [ "$1" = -i ]; then cp "$2" "$STUB_LOG/key.seen"; fi
+  shift
+done
+EOF
+  run bash -c "$LIBS; trap d4a_remote_cleanup EXIT; d4a_remote_open demo; d4a_remote_run 'true'"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$STUB_LOG/key.seen")" = "$(printf 'FAKE-KEY-HEADER\nFAKE-KEY-BODY\nFAKE-KEY-FOOTER')" ]
+}
+
+@test "d4a_kc_get keeps a single-line value that looks like hex verbatim" {
+  printf 'deadbeef' > "$KC_DIR/deploy4artifact:demo/vps_pass"
+  run bash -c "$LIBS; d4a_kc_get demo vps_pass"
+  [ "$status" -eq 0 ]
+  [ "$output" = "deadbeef" ]
+}
+
+@test "d4a_kc_get fails for a missing field" {
+  run bash -c "$LIBS; d4a_kc_get demo no_such_field"
+  [ "$status" -ne 0 ]
+}
+
 @test "d4a_remote_run returns the ssh exit status" {
   printf '255' > "$STUB_LOG/ssh.exit.1"
   run bash -c "$LIBS; trap d4a_remote_cleanup EXIT; d4a_remote_open demo; d4a_remote_run 'true'"

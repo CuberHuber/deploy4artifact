@@ -39,11 +39,20 @@ d4a_kc_set() {
 }
 
 d4a_kc_get() {
-  local profile="$1" field="$2" service
+  local profile="$1" field="$2" service value meta
   service="$(d4a_kc_service "$profile")"
   case "$(d4a_kc_backend)" in
     macos)
-      security find-generic-password -a "$field" -s "$service" -w 2>/dev/null
+      value="$(security find-generic-password -a "$field" -s "$service" -w 2>/dev/null)" \
+        || return 1
+      # `security -w` hex-encodes a value holding non-printable bytes, such as
+      # the newlines of a multi-line SSH key. `-g` marks that case with 0x, so
+      # a plain value that only looks like hex is never decoded.
+      meta="$(security find-generic-password -a "$field" -s "$service" -g 2>&1 >/dev/null || true)"
+      case "$meta" in
+        *"password: 0x"*) printf '%s' "$value" | xxd -r -p ;;
+        *) printf '%s\n' "$value" ;;
+      esac
       ;;
     linux)
       secret-tool lookup service "$service" account "$field" 2>/dev/null

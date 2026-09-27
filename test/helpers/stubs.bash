@@ -59,19 +59,38 @@ EOF
   _d4a_stub security <<'EOF'
 #!/usr/bin/env bash
 cmd="$1"; shift
-acct=""; svc=""; val=""
+acct=""; svc=""; val=""; want_w=0; want_g=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -a) acct="$2"; shift 2 ;;
     -s) svc="$2"; shift 2 ;;
-    -w) if [ $# -ge 2 ]; then val="$2"; shift 2; else shift; fi ;;
+    -w) want_w=1; if [ $# -ge 2 ]; then val="$2"; shift 2; else shift; fi ;;
+    -g) want_g=1; shift ;;
     *) shift ;;
   esac
 done
 f="$KC_DIR/$svc/$acct"
 case "$cmd" in
   add-generic-password) mkdir -p "$KC_DIR/$svc"; printf '%s' "$val" > "$f" ;;
-  find-generic-password) [ -f "$f" ] || exit 44; cat "$f"; echo ;;
+  find-generic-password)
+    [ -f "$f" ] || exit 44
+    # Like the real tool: a value holding non-printable bytes (the newlines
+    # of a multi-line key) comes back hex-encoded, and -g flags it with 0x.
+    hex=""
+    if [ "$(LC_ALL=C tr -d '[:print:]' < "$f" | wc -c)" -gt 0 ]; then
+      hex="$(od -An -tx1 -v "$f" | tr -d ' \n')"
+    fi
+    if [ "$want_g" -eq 1 ]; then
+      if [ -n "$hex" ]; then
+        printf 'password: 0x%s  "(elided)"\n' "$(printf '%s' "$hex" | tr '[:lower:]' '[:upper:]')" >&2
+      else
+        printf 'password: "%s"\n' "$(cat "$f")" >&2
+      fi
+    fi
+    if [ "$want_w" -eq 1 ]; then
+      if [ -n "$hex" ]; then printf '%s\n' "$hex"; else cat "$f"; echo; fi
+    fi
+    ;;
   delete-generic-password) rm -f "$f" ;;
 esac
 EOF
@@ -110,7 +129,7 @@ d4a_stubs_profile() {
   printf 'deploy' > "$svc/vps_user"
   printf '22' > "$svc/vps_port"
   printf 'key' > "$svc/auth_method"
-  printf 'FAKE-PRIVATE-KEY' > "$svc/vps_ssh_key"
+  printf 'FAKE-KEY-HEADER\nFAKE-KEY-BODY\nFAKE-KEY-FOOTER' > "$svc/vps_ssh_key"
   if [ -n "${2:-}" ]; then printf '%s' "$2" > "$svc/site_domain"; fi
   if [ -n "${3:-}" ]; then printf '%s' "$3" > "$svc/acme_email"; fi
   printf '%s\n' "$name" >> "$D4A_HOME/profiles.list"
