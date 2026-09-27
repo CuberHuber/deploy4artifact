@@ -43,6 +43,29 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"entry=page.html"* ]]
   grep -qF '<base href="/d4a/a/demo/">' "$STAGE/page.html"
+  [ -f "$STAGE/index.html" ]
+  grep -qF '<base href="/d4a/a/demo/">' "$STAGE/index.html"
+  [ ! -e "$SRC/index.html" ]
+  [ -z "$(unzip -l "$STAGE/.d4a/download.zip" | grep ' index.html$' || true)" ]
+}
+
+@test "fails when there is no top-level HTML file" {
+  mkdir -p "$SRC/sub"
+  printf '<head></head>\n' > "$SRC/sub/index.html"
+  printf 'x' > "$SRC/notes.txt"
+  run bash "$SCRIPT" "$SRC" demo "$STAGE"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no HTML entry file"* ]]
+}
+
+@test "stores a symlink in the zip as a link and never copies the file it points to" {
+  printf '<head></head>\n' > "$SRC/index.html"
+  printf 'TOP-SECRET-OUTSIDE' > "$WORK/outside.txt"
+  ln -s "$WORK/outside.txt" "$SRC/leak.txt"
+  run bash "$SCRIPT" "$SRC" demo "$STAGE"
+  [ "$status" -eq 0 ]
+  unzip -l "$STAGE/.d4a/download.zip" | grep -q ' leak.txt$'
+  [ -z "$(unzip -p "$STAGE/.d4a/download.zip" leak.txt | grep 'TOP-SECRET-OUTSIDE' || true)" ]
 }
 
 @test "refuses to guess between several top-level HTML files and names them" {

@@ -18,8 +18,10 @@ Usage: prepare-artifact.sh <fetched-dir> <slug> <staging-dir>
 
 Copies <fetched-dir> into <staging-dir> (which must be new or empty),
 writes <staging-dir>/.d4a/download.zip from the untouched fetched files,
-and injects <base href="/d4a/a/<slug>/"> into the entry HTML. Prints
-"entry=<file>" on success.
+and injects <base href="/d4a/a/<slug>/"> into the entry HTML. An entry
+other than index.html is also copied to index.html so nginx serves it at
+the root. Symlinks go into the zip as links, never as the files they point
+to. Prints "entry=<file>" on success.
 EOF
 }
 
@@ -69,8 +71,12 @@ main() {
   staging_abs="$(cd "$staging" && pwd -P)"
   cp -R "$src_abs"/. "$staging_abs"/
   mkdir -p "$staging_abs/.d4a"
-  (cd "$src_abs" && zip -qrX "$staging_abs/.d4a/download.zip" .)
+  (cd "$src_abs" && zip -qrXy "$staging_abs/.d4a/download.zip" .)
   bash "$DIR/inject-base-href.sh" "$staging_abs/$entry" "/d4a/a/$slug/"
+  if [[ "$entry" != "index.html" ]]; then
+    # nginx serves only index.html at the directory root.
+    cp "$staging_abs/$entry" "$staging_abs/index.html"
+  fi
   printf 'entry=%s\n' "$entry"
 }
 
