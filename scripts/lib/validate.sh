@@ -76,6 +76,8 @@ d4a_slug_from_id() {
   s="${s:0:63}"
   s="${s%-}"
   [[ -n "$s" ]] || d4a_die "cannot derive a slug from: '$1'"
+  # tr and sed classes depend on the locale; never trust their output blindly.
+  d4a_validate_slug "$s"
   printf '%s' "$s"
 }
 
