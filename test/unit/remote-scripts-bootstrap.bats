@@ -6,6 +6,7 @@ load '../helpers/stubs'
 
 setup() {
   d4a_stubs_setup
+  ROOT="$(mktemp -d)"
   # shellcheck source=/dev/null
   source "$SCRIPTS/lib/common.sh"
   # shellcheck source=/dev/null
@@ -15,6 +16,8 @@ setup() {
 }
 
 teardown() {
+  chmod -R u+w "$ROOT" 2>/dev/null || true
+  rm -rf "$ROOT"
   d4a_stubs_teardown
 }
 
@@ -66,4 +69,50 @@ teardown() {
   D4A_REMOTE_ROOT="/srv/../etc"
   run d4a_gen_proxy_script ops@example.com
   [ "$status" -ne 0 ]
+}
+
+@test "check reports sudo=no for a non-root user without passwordless sudo" {
+  [ "$(id -u)" -ne 0 ] || skip "runs as root"
+  export STUB_SUDO_EXIT=1
+  run bash -c "$(d4a_gen_check_script)"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sudo=no"* ]] || false
+  grep -q '^-n true' "$STUB_LOG/sudo.args"
+}
+
+@test "proxy script needs no sudo when the user can write the root" {
+  [ "$(id -u)" -ne 0 ] || skip "runs as root"
+  export D4A_REMOTE_ROOT="$ROOT/d4a" STUB_DOCKER_INSPECT_EXIT=1
+  run bash -c "$(d4a_gen_proxy_script ops@example.com)"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"traefik=started"* ]] || false
+  [ ! -e "$STUB_LOG/sudo.args" ]
+  [ -d "$ROOT/d4a/artifacts" ]
+  [ -f "$ROOT/d4a/traefik/acme.json" ]
+}
+
+@test "proxy script prints the one-time manual step when it needs sudo and has none" {
+  [ "$(id -u)" -ne 0 ] || skip "runs as root"
+  chmod 555 "$ROOT"
+  export D4A_REMOTE_ROOT="$ROOT/d4a" STUB_SUDO_EXIT=1
+  run bash -c "$(d4a_gen_proxy_script ops@example.com)"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"sudo mkdir -p $ROOT/d4a && sudo chown $(id -un) $ROOT/d4a"* ]] || false
+  [ -z "$(grep '^run ' "$STUB_LOG/docker.args" || true)" ]
+}
+
+@test "proxy script refuses to replace a d4a-traefik it did not create" {
+  export D4A_REMOTE_ROOT="$ROOT/d4a" STUB_DOCKER_MANAGED=""
+  run bash -c "$(d4a_gen_proxy_script ops@example.com)"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not created by deploy4artifact"* ]] || false
+  [ -z "$(grep -E '^(rm|run) ' "$STUB_LOG/docker.args" || true)" ]
+}
+
+@test "proxy script refuses an existing d4a-internal that is not --internal" {
+  export D4A_REMOTE_ROOT="$ROOT/d4a" STUB_DOCKER_INSPECT_EXIT=1 STUB_DOCKER_NETWORK_INTERNAL=false
+  run bash -c "$(d4a_gen_proxy_script ops@example.com)"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"d4a-internal"*"not internal"* ]] || false
+  [ -z "$(grep '^run ' "$STUB_LOG/docker.args" || true)" ]
 }

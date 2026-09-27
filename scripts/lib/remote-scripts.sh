@@ -36,6 +36,31 @@ fi
 EOF
 }
 
+# Refuses to go on when d4a-internal exists but is not an --internal network.
+_d4a_gen_internal_net_guard() {
+  cat <<'EOF'
+if docker network inspect d4a-internal >/dev/null 2>&1; then
+  if [ "$(docker network inspect -f '{{.Internal}}' d4a-internal)" != true ]; then
+    echo "refusing to use network d4a-internal: it exists but is not internal (created without --internal); remove it or fix it by hand" >&2
+    exit 1
+  fi
+fi
+EOF
+}
+
+# Refuses to go on when the container named by the shell expression $1
+# exists without the d4a.managed=true label.
+_d4a_gen_owned_guard() {
+  cat <<EOF
+if docker inspect $1 >/dev/null 2>&1; then
+  if [ "\$(docker inspect -f '{{index .Config.Labels "d4a.managed"}}' $1)" != true ]; then
+    echo "refusing to replace $1: it was not created by deploy4artifact" >&2
+    exit 1
+  fi
+fi
+EOF
+}
+
 d4a_gen_check_script() {
   _d4a_gen_header
   cat <<'EOF'
@@ -82,11 +107,23 @@ d4a_gen_proxy_script() {
   d4a_validate_remote_root
   _d4a_gen_header "D4A_ROOT=$D4A_REMOTE_ROOT" "ACME_EMAIL=$email" "TRAEFIK_IMAGE=$D4A_TRAEFIK_IMAGE"
   _d4a_gen_docker_guard
+  _d4a_gen_internal_net_guard
+  _d4a_gen_owned_guard d4a-traefik
   cat <<'EOF'
-SUDO=""
-if [ "$(id -u)" -ne 0 ]; then SUDO="sudo -n"; fi
-$SUDO mkdir -p "$D4A_ROOT/artifacts" "$D4A_ROOT/traefik"
-$SUDO chown -R "$(id -un)" "$D4A_ROOT"
+root_ready() {
+  mkdir -p "$D4A_ROOT/artifacts" "$D4A_ROOT/traefik" 2>/dev/null \
+    && [ -w "$D4A_ROOT/artifacts" ] && [ -w "$D4A_ROOT/traefik" ] \
+    && { [ ! -e "$D4A_ROOT/traefik/acme.json" ] || [ -w "$D4A_ROOT/traefik/acme.json" ]; }
+}
+if ! root_ready; then
+  if ! sudo -n true >/dev/null 2>&1; then
+    echo "cannot create or write $D4A_ROOT as $(id -un), and passwordless sudo is not available." >&2
+    echo "Run this once on the VPS, then retry: sudo mkdir -p $D4A_ROOT && sudo chown $(id -un) $D4A_ROOT" >&2
+    exit 1
+  fi
+  sudo -n mkdir -p "$D4A_ROOT/artifacts" "$D4A_ROOT/traefik"
+  sudo -n chown -R "$(id -un)" "$D4A_ROOT"
+fi
 touch "$D4A_ROOT/traefik/acme.json"
 chmod 600 "$D4A_ROOT/traefik/acme.json"
 docker network inspect d4a-internal >/dev/null 2>&1 || docker network create --internal d4a-internal >/dev/null
@@ -126,11 +163,16 @@ d4a_gen_run_script() {
   _d4a_gen_header "SLUG=$slug" "DOMAIN=$domain" "D4A_ROOT=$D4A_REMOTE_ROOT" \
     "NGINX_IMAGE=$D4A_NGINX_IMAGE" "HEALTH_WAIT=$D4A_HEALTH_WAIT"
   _d4a_gen_docker_guard
+  _d4a_gen_internal_net_guard
   cat <<'EOF'
 name="d4a-$SLUG"
 r="$name"
 dir="$D4A_ROOT/artifacts/$SLUG"
 [ -d "$dir" ] || { echo "artifact directory missing on the VPS: $dir" >&2; exit 1; }
+EOF
+  # shellcheck disable=SC2016 # expands in the generated script, not here
+  _d4a_gen_owned_guard '"$name"'
+  cat <<'EOF'
 chmod -R a+rX "$dir"
 docker rm -f "$name" >/dev/null 2>&1 || true
 docker run -d --name "$name" --restart unless-stopped \

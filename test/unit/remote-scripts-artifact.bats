@@ -51,6 +51,32 @@ teardown() {
   [[ "$run_args" != *' -p '* ]]
 }
 
+@test "run script adds a trailing-slash redirect for the bare slug path" {
+  run d4a_gen_run_script demo d4a.example.com
+  [[ "$output" == *'redirectregex.regex=^(https://[^/]+/d4a/a/$SLUG)\$"'* ]] || false
+  [[ "$output" == *'redirectregex.replacement=\${1}/"'* ]] || false
+  bash -c "$(d4a_gen_run_script demo d4a.example.com)"
+  run_args="$(grep '^run -d --name d4a-demo' "$STUB_LOG/docker.args")"
+  [[ "$run_args" == *'traefik.http.middlewares.d4a-demo-addslash.redirectregex.regex=^(https://[^/]+/d4a/a/demo)$ '* ]] || false
+  [[ "$run_args" == *'traefik.http.middlewares.d4a-demo-addslash.redirectregex.replacement=${1}/ '* ]] || false
+}
+
+@test "run script refuses to replace a d4a-<slug> container it did not create" {
+  export STUB_DOCKER_MANAGED=""
+  run bash -c "$(d4a_gen_run_script demo d4a.example.com)"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not created by deploy4artifact"* ]] || false
+  [ -z "$(grep -E '^(rm|run) ' "$STUB_LOG/docker.args" || true)" ]
+}
+
+@test "run script refuses an existing d4a-internal that is not --internal" {
+  export STUB_DOCKER_NETWORK_INTERNAL=false
+  run bash -c "$(d4a_gen_run_script demo d4a.example.com)"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"d4a-internal"*"not internal"* ]] || false
+  [ -z "$(grep -E '^(rm|run) ' "$STUB_LOG/docker.args" || true)" ]
+}
+
 @test "run script makes files synced with a strict umask readable by nginx" {
   chmod 600 "$ROOT/artifacts/demo/index.html"
   bash -c "$(d4a_gen_run_script demo d4a.example.com)"
@@ -58,7 +84,7 @@ teardown() {
 }
 
 @test "run script fails and reports when the container never gets healthy" {
-  export STUB_DOCKER_INSPECT=starting D4A_HEALTH_WAIT=2
+  export STUB_DOCKER_INSPECT=starting STUB_DOCKER_MANAGED=true D4A_HEALTH_WAIT=2
   run bash -c "$(d4a_gen_run_script demo d4a.example.com)"
   [ "$status" -ne 0 ]
   [[ "$output" == *"did not become healthy"* ]]

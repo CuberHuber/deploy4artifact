@@ -5,6 +5,12 @@
 # In a .bats file: load '../helpers/stubs', call d4a_stubs_setup in setup()
 # and d4a_stubs_teardown in teardown(). Each stub appends its argv as one
 # line to $STUB_LOG/<name>.args.
+#
+# docker: STUB_DOCKER_INFO_EXIT, STUB_DOCKER_INSPECT(_EXIT), STUB_DOCKER_PS;
+# a d4a.managed label query answers STUB_DOCKER_MANAGED (falling back to
+# STUB_DOCKER_INSPECT, then "true"); "network inspect" exits
+# STUB_DOCKER_NETWORK_EXIT and prints STUB_DOCKER_NETWORK_INTERNAL (default
+# "true"). sudo exits STUB_SUDO_EXIT (default 0) without running anything.
 
 d4a_stubs_setup() {
   SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../../scripts" && pwd)"
@@ -23,11 +29,31 @@ case "$1" in
   info) exit "${STUB_DOCKER_INFO_EXIT:-0}" ;;
   inspect)
     [ "${STUB_DOCKER_INSPECT_EXIT:-0}" -eq 0 ] || exit "$STUB_DOCKER_INSPECT_EXIT"
-    printf '%s\n' "${STUB_DOCKER_INSPECT-healthy}"
+    case "$*" in
+      *d4a.managed*)
+        if [ -n "${STUB_DOCKER_MANAGED+x}" ]; then printf '%s\n' "$STUB_DOCKER_MANAGED"
+        elif [ -n "${STUB_DOCKER_INSPECT+x}" ]; then printf '%s\n' "$STUB_DOCKER_INSPECT"
+        else printf 'true\n'
+        fi
+        ;;
+      *) printf '%s\n' "${STUB_DOCKER_INSPECT-healthy}" ;;
+    esac
+    ;;
+  network)
+    if [ "$2" = inspect ]; then
+      [ "${STUB_DOCKER_NETWORK_EXIT:-0}" -eq 0 ] || exit "$STUB_DOCKER_NETWORK_EXIT"
+      printf '%s\n' "${STUB_DOCKER_NETWORK_INTERNAL-true}"
+    fi
     ;;
   ps) printf '%s' "${STUB_DOCKER_PS:-}" ;;
 esac
 exit 0
+EOF
+
+  _d4a_stub sudo <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STUB_LOG/sudo.args"
+exit "${STUB_SUDO_EXIT:-0}"
 EOF
 
   _d4a_stub security <<'EOF'

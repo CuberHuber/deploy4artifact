@@ -55,7 +55,7 @@ teardown() {
   printf 'x' > "$SRC/notes.txt"
   run bash "$SCRIPT" "$SRC" demo "$STAGE"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"no HTML entry file"* ]]
+  [[ "$output" == *"no HTML entry file"* ]] || false
 }
 
 @test "stores a symlink in the zip as a link and never copies the file it points to" {

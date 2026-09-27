@@ -129,9 +129,9 @@ setup() {
     run env LC_ALL="$loc" bash -c 'source "$1/lib/common.sh"; source "$1/lib/validate.sh"; d4a_slug_from_id "Café-ÜBER-ı-Ⅻ"' _ "$DIR"
     echo "locale=$loc status=$status output=$output"
     if [ "$status" -eq 0 ]; then
-      [[ "$output" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]
+      [[ "$output" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || false
     else
-      [[ "$output" == *"invalid slug"* || "$output" == *"cannot derive a slug"* ]]
+      [[ "$output" == *"invalid slug"* || "$output" == *"cannot derive a slug"* ]] || false
     fi
   done
 }
@@ -140,7 +140,7 @@ setup() {
   sed() { cat; }
   run d4a_slug_from_id "café"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"invalid slug"* ]]
+  [[ "$output" == *"invalid slug"* ]] || false
 }
 
 @test "refuses to derive a slug from punctuation only" {

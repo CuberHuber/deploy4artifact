@@ -115,6 +115,14 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/bootstrap-vps.sh" <profile> check
 - `docker=no-access`: stop. Explain that the SSH user needs Docker access,
   either by deploying as root or by joining the `docker` group (which is
   root-equivalent). Do not change groups yourself.
+- `sudo=no` (a non-root SSH user without passwordless sudo): `install-docker`
+  cannot run, so with `docker=missing` stop and ask the user to install
+  Docker by hand or deploy as root or a passwordless-sudo user. With
+  `docker=ok` and `traefik=missing`, `ensure-proxy` works without sudo when
+  the user can write `/srv/deploy4artifact`. If that directory does not
+  exist yet, it stops and prints a one-time command for the user to run on
+  the VPS: `sudo mkdir -p /srv/deploy4artifact && sudo chown <user> /srv/deploy4artifact`.
+  Surface it verbatim and never run it yourself.
 - `traefik=missing`: tell the user this starts the proxy on ports 80 and
   443, then run `bootstrap-vps.sh <profile> ensure-proxy`. It is
   idempotent.
@@ -127,7 +135,8 @@ bash "$CLAUDE_PLUGIN_ROOT/scripts/deploy.sh" <profile> <tmp-dir>/site <slug>
 
 The script re-checks Docker and the proxy, syncs the files, replaces the
 `d4a-<slug>` container, and waits for it to become healthy. Surface its
-output verbatim, including warnings.
+output verbatim, including warnings. v1 has no rollback: a failed redeploy
+leaves the slug down until a later deploy succeeds.
 
 ## Step 9: Confirm
 
