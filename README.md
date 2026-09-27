@@ -63,6 +63,18 @@ Claude walks through fetching the artifact, choosing a destination, and
 running the deploy — see `skills/deploy-artifact/SKILL.md` and
 `skills/vps-profiles/SKILL.md` for the exact flow.
 
+### Deploy to a VPS
+
+1. Create a profile and point a domain at the VPS:
+   `vps-profile.sh add <name> <host> <user> <port> key --key-file ~/.ssh/id_ed25519`, then
+   `vps-profile.sh set-site <name> <domain> <acme-email>`.
+2. Ask Claude to "deploy this artifact to my VPS" with a `claude.ai` artifact link.
+   The skill checks the VPS, offers to install Docker, starts the Traefik proxy once, and deploys.
+3. The artifact is served at `https://<domain>/d4a/a/<slug>/`, and its original files download from `https://<domain>/d4a/a/<slug>/.d4a/download.zip`.
+4. Ask Claude to "list my deployments", "check health of <slug>", or "remove <slug>".
+
+Each artifact runs in its own `nginx:stable-alpine` container with no internet access; see `skills/deploy-artifact/references/security-model.md`.
+
 ## How to Contribute
 
 Fork the repo and send a pull request. Every change must build without any

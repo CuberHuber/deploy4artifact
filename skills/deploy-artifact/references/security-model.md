@@ -61,3 +61,17 @@ Temporary SSH key material written to disk during a `key`-auth deploy is
 created with `mktemp` (mode `600`, private tmpdir) and removed via a
 `trap ... EXIT`, using `shred -u` when available, on both success and
 failure paths.
+
+## Deployed artifact isolation (v1)
+
+- Every artifact container joins only `d4a-internal`, a Docker network created with `--internal`, so it has no route to the internet.
+  Traefik is the only container on both that network and the public one.
+- Traefik runs with `exposedByDefault=false` and routes only containers labeled `traefik.enable=true`, so nothing else on the VPS is exposed by accident.
+- `list` and `remove` act only on containers labeled `d4a.managed=true`; `remove` refuses anything else.
+- Remote actions are whole scripts generated locally from validated values and streamed to `bash -s` over SSH.
+  No command is assembled by interpolating user input into a quoted one-liner, and nothing is left behind on the VPS.
+- Docker is installed only after an explicit yes, from the distro package manager, never by piping a download into a shell.
+- Traefik mounts the Docker socket read-only to discover labeled containers.
+  A read-only socket mount still grants the full Docker API, so the proxy container is root-equivalent on the host; it holds no artifact content.
+- Known limit: every artifact is served from the same origin (`https://<domain>`), so one artifact's JavaScript can read another artifact's pages and browser storage.
+  Separate origins per artifact are tracked in backlog issue #2.

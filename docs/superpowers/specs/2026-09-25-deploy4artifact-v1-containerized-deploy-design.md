@@ -166,28 +166,30 @@ New skill, `deployments`, alongside the extended `deploy-artifact` and
 
 ```text
 skills/
-  deploy-artifact/       existing, extended: capability-check, slug
-                          selection/collision handling, base-href
-                          injection, calls new bootstrap+deploy mechanics
-  vps-profiles/           existing, extended: domain + acme_email fields
+  deploy-artifact/       extended: capability check, slug selection and
+                          collision handling, prepare, bootstrap, deploy
+  vps-profiles/           extended: set-site (domain + acme_email)
   deployments/            new: list, health, remove
 scripts/
   lib/
-    common.sh, validate.sh, keychain.sh, profiles.sh   (unchanged)
-  check-artifact-url.sh   (existing, unchanged)
-  deploy-local.sh         (existing; local-target semantics unchanged)
-  deploy-vps.sh           (existing rsync pattern, reused by the new
-                            per-deploy artifact-directory sync)
-  vps-profile.sh          (existing, extended: domain/acme_email)
-  check-capabilities.sh   (new)
-  inject-base-href.sh     (new)
-  bootstrap-vps.sh        (new: idempotent Docker/Traefik/network setup)
-  generate-run-script.sh  (new: pure function — builds the per-deploy
-                            docker-run script text; no I/O)
-  list-deployments.sh     (new)
-  health-check.sh         (new)
-  remove-deployment.sh    (new)
+    common.sh, validate.sh, keychain.sh, profiles.sh   (validate.sh gains
+                            slug/domain/email validators)
+    remote.sh             new: keychain-backed SSH transport
+    remote-scripts.sh     new: pure generators for every remote script
+    registry.sh           new: local deployments.list
+  check-artifact-url.sh   (unchanged)
+  deploy-local.sh         (unchanged)
+  deploy-vps.sh           (v0.1 path deploy, now on lib/remote.sh)
+  vps-profile.sh          (extended: set-site)
+  check-capabilities.sh   new
+  inject-base-href.sh     new
+  prepare-artifact.sh     new: staging copy, .d4a/download.zip, base href
+  bootstrap-vps.sh        new: check | install-docker | ensure-proxy
+  deploy.sh               new
+  deployments.sh          new: list | health | remove | suggest-slug
 ```
+
+Implementation note: the planned `generate-run-script.sh` became `lib/remote-scripts.sh` so every remote script is unit-testable the same way, the three management scripts became `deployments.sh` subcommands, and generated scripts are streamed to `bash -s` over SSH instead of being rsynced as files.
 
 All `$CLAUDE_PLUGIN_ROOT`-relative references in SKILL.md files, all
 scripts self-locate via `BASH_SOURCE`, consistent with the existing
