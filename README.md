@@ -40,9 +40,17 @@ git clone https://github.com/CuberHuber/deploy4artifact.git
 claude --plugin-dir /path/to/deploy4artifact
 ```
 
-Or add it as a plugin marketplace entry pointing at this repository, per
-Claude Code's
-[plugin documentation](https://docs.claude.com/en/docs/claude-code/plugins).
+Or install it as a regular plugin through the marketplace this repository
+declares in `.claude-plugin/marketplace.json`:
+
+```sh
+claude plugin marketplace add CuberHuber/deploy4artifact   # or a local clone path
+claude plugin install deploy4artifact@deploy4artifact
+```
+
+After pulling new commits, refresh it with
+`claude plugin marketplace update deploy4artifact` and
+`claude plugin update deploy4artifact@deploy4artifact`.
 
 ## Usage
 
@@ -62,6 +70,19 @@ deploy it:
 Claude walks through fetching the artifact, choosing a destination, and
 running the deploy — see `skills/deploy-artifact/SKILL.md` and
 `skills/vps-profiles/SKILL.md` for the exact flow.
+`scripts/deploy-vps.sh` still exists for the v0.1 deploy that copies files to a plain path on the VPS.
+
+### Deploy to a VPS
+
+1. Create a profile and point a domain at the VPS:
+   `vps-profile.sh add <name> <host> <user> <port> key --key-file ~/.ssh/id_ed25519`, then
+   `vps-profile.sh set-site <name> <domain> <acme-email>`.
+2. Ask Claude to "deploy this artifact to my VPS" with a `claude.ai` artifact link.
+   The skill checks the VPS, offers to install Docker, starts the Traefik proxy once, and deploys.
+3. The artifact is served at `https://<domain>/d4a/a/<slug>/`, and its original files download from `https://<domain>/d4a/a/<slug>/.d4a/download.zip`.
+4. Ask Claude to "list my deployments", "check health of <slug>", or "remove <slug>".
+
+Each artifact runs in its own `nginx:stable-alpine` container with no internet access; see `skills/deploy-artifact/references/security-model.md`.
 
 ## How to Contribute
 

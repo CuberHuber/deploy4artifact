@@ -1,9 +1,9 @@
 ---
 name: vps-profiles
 description: This skill should be used when the user asks to "add a VPS profile", "save my VPS credentials", "configure a deploy target", "list my VPS profiles", "remove a VPS profile", "set up SSH deploy credentials", or otherwise wants to manage the saved servers deploy4artifact can deploy to. Manages named VPS connection profiles (host, user, port, auth method) with all credentials stored in the OS keychain, never on disk or in conversation.
-argument-hint: "[list|show|add|remove] [profile-name]"
+argument-hint: "[list|show|add|set-site|remove] [profile-name]"
 allowed-tools: AskUserQuestion, Bash, Read
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Manage VPS deploy profiles
@@ -55,6 +55,21 @@ to an insecure input path — do not try to work around that refusal.
 Recommend key auth over password auth whenever the user is open to it;
 password auth also requires `sshpass` to be installed for the later deploy
 step.
+
+## Set the site domain
+
+VPS deploys need a public domain whose DNS A or AAAA record points at the
+VPS, and an email Let's Encrypt uses for certificate expiry notices. Ask for
+both with `AskUserQuestion`, then run:
+
+```sh
+bash "$CLAUDE_PLUGIN_ROOT/scripts/vps-profile.sh" set-site <name> <domain> <acme-email>
+```
+
+Neither value is secret; both live in the keychain next to the rest of the
+profile so one place holds everything. An IP address is rejected because
+Let's Encrypt cannot issue a certificate for it. The DNS record must exist
+before the first deploy, or certificate issuance fails.
 
 ## Remove a profile
 

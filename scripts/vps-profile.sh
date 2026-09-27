@@ -22,6 +22,7 @@ Usage:
   vps-profile.sh show <name>
   vps-profile.sh add <name> <host> <user> <port> key --key-file <path>
   vps-profile.sh add <name> <host> <user> <port> password
+  vps-profile.sh set-site <name> <domain> <acme-email>
   vps-profile.sh remove <name>
 
 "add" with "key" reads the private key from the given file itself — the
@@ -29,6 +30,9 @@ key content never appears on the command line. "add" with "password"
 requires a real interactive terminal and refuses to run under a
 non-interactive caller (such as an AI assistant's tool call), printing
 this same instruction instead.
+
+"set-site" records the public domain artifacts are served on (its DNS must
+point at the VPS) and the email Let's Encrypt uses for expiry notices.
 EOF
 }
 
@@ -43,7 +47,7 @@ cmd_list() {
 }
 
 cmd_show() {
-  local name="${1:-}" host user port auth_method
+  local name="${1:-}" host user port auth_method domain email
   [[ -n "$name" ]] || { usage; exit 2; }
   d4a_validate_profile_name "$name"
   d4a_profile_exists "$name" || d4a_die "no such profile: $name"
@@ -51,8 +55,10 @@ cmd_show() {
   user="$(d4a_kc_get "$name" vps_user || echo '?')"
   port="$(d4a_kc_get "$name" vps_port 2>/dev/null || echo 22)"
   auth_method="$(d4a_kc_get "$name" auth_method || echo '?')"
-  printf 'profile: %s\n  host: %s\n  user: %s\n  port: %s\n  auth: %s\n' \
-    "$name" "$host" "$user" "$port" "$auth_method"
+  domain="$(d4a_kc_get "$name" site_domain 2>/dev/null || echo '(not set)')"
+  email="$(d4a_kc_get "$name" acme_email 2>/dev/null || echo '(not set)')"
+  printf 'profile: %s\n  host: %s\n  user: %s\n  port: %s\n  auth: %s\n  domain: %s\n  acme email: %s\n' \
+    "$name" "$host" "$user" "$port" "$auth_method" "$domain" "$email"
 }
 
 cmd_add() {
@@ -105,6 +111,18 @@ cmd_add() {
   d4a_log "profile '$name' stored in the OS keychain"
 }
 
+cmd_set_site() {
+  local name="${1:-}" domain="${2:-}" email="${3:-}"
+  [[ -n "$name" && -n "$domain" && -n "$email" ]] || { usage; exit 2; }
+  d4a_validate_profile_name "$name"
+  d4a_profile_exists "$name" || d4a_die "no such profile: $name"
+  d4a_validate_domain "$domain"
+  d4a_validate_email "$email"
+  d4a_kc_set "$name" site_domain "$domain"
+  d4a_kc_set "$name" acme_email "$email"
+  d4a_log "profile '$name' will serve artifacts at https://$domain/d4a/a/<slug>/"
+}
+
 cmd_remove() {
   local name="${1:-}"
   [[ -n "$name" ]] || { usage; exit 2; }
@@ -115,6 +133,8 @@ cmd_remove() {
   d4a_kc_delete "$name" auth_method
   d4a_kc_delete "$name" vps_ssh_key
   d4a_kc_delete "$name" vps_pass
+  d4a_kc_delete "$name" site_domain
+  d4a_kc_delete "$name" acme_email
   d4a_profile_remove_name "$name"
   d4a_log "profile '$name' removed"
 }
@@ -127,6 +147,7 @@ main() {
     list) cmd_list "$@" ;;
     show) cmd_show "$@" ;;
     add) cmd_add "$@" ;;
+    set-site) cmd_set_site "$@" ;;
     remove) cmd_remove "$@" ;;
     *) usage; exit 2 ;;
   esac

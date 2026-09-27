@@ -1,0 +1,15 @@
+{
+  "name": "deploy4artifact",
+  "description": "Marketplace for the deploy4artifact plugin: self-host Claude artifacts on your own VPS.",
+  "owner": {
+    "name": "CuberHuber",
+    "url": "https://github.com/CuberHuber"
+  },
+  "plugins": [
+    {
+      "name": "deploy4artifact",
+      "source": "./",
+      "description": "Deploy a published Claude artifact to a local path, or to a VPS where it runs in an isolated container behind a TLS reverse proxy, with all credentials kept in the OS keychain."
+    }
+  ]
+}

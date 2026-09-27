@@ -63,3 +63,30 @@ d4a_validate_remote_path() {
     *) ;;
   esac
 }
+
+d4a_validate_slug() {
+  [[ "$1" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
+    || d4a_die "invalid slug: '$1' (lowercase letters, digits and -, 1-63 chars, no leading or trailing -)"
+}
+
+d4a_slug_from_id() {
+  local s
+  s="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9]/-/g' -e 's/--*/-/g' -e 's/^-//' -e 's/-$//')"
+  s="${s:0:63}"
+  s="${s%-}"
+  [[ -n "$s" ]] || d4a_die "cannot derive a slug from: '$1'"
+  # tr and sed classes depend on the locale; never trust their output blindly.
+  d4a_validate_slug "$s"
+  printf '%s' "$s"
+}
+
+d4a_validate_domain() {
+  [[ "$1" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] \
+    || d4a_die "invalid domain: '$1' (a lowercase hostname such as d4a.example.com; an IP address cannot get a Let's Encrypt certificate)"
+}
+
+d4a_validate_email() {
+  [[ "$1" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$ ]] \
+    || d4a_die "invalid email: '$1'"
+}
