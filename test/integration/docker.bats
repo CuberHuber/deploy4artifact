@@ -7,7 +7,11 @@ setup() {
   SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../../scripts" && pwd)"
   LIBS="source '$SCRIPTS/lib/common.sh'; source '$SCRIPTS/lib/validate.sh'; source '$SCRIPTS/lib/remote-scripts.sh'"
   ROOT="$(mktemp -d)"
-  NET="d4a-it-net-$$"
+  RUN_ID="$$"
+  NET="d4a-it-net-$RUN_ID"
+  WEB="d4a-it-web-$RUN_ID"
+  DEMO_SLUG="itdemo-$RUN_ID"
+  FAKE_SLUG="itfake-$RUN_ID"
   docker network create --internal "$NET" >/dev/null
   if ! docker network inspect d4a-internal >/dev/null 2>&1; then
     docker network create --internal d4a-internal >/dev/null
@@ -16,7 +20,7 @@ setup() {
 }
 
 teardown() {
-  docker rm -f d4a-it-web d4a-itdemo d4a-itfake >/dev/null 2>&1 || true
+  docker rm -f "$WEB" "d4a-$DEMO_SLUG" "d4a-$FAKE_SLUG" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
   if [ -e "$ROOT/.created-d4a-internal" ]; then
     docker network rm d4a-internal >/dev/null 2>&1 || true
@@ -30,40 +34,41 @@ teardown() {
 }
 
 @test "containers on the same --internal network can reach each other" {
-  docker run -d --name d4a-it-web --network "$NET" nginx:stable-alpine >/dev/null
-  run docker run --rm --network "$NET" alpine:3 sh -c 'for i in 1 2 3 4 5; do wget -q -T 2 -O - http://d4a-it-web/ && exit 0; sleep 1; done; exit 1'
+  docker run -d --name "$WEB" --network "$NET" nginx:stable-alpine >/dev/null
+  run docker run --rm --network "$NET" alpine:3 sh -c "for i in 1 2 3 4 5; do wget -q -T 2 -O - http://$WEB/ && exit 0; sleep 1; done; exit 1"
   [ "$status" -eq 0 ]
   [[ "$output" == *"nginx"* ]]
 }
 
 @test "the generated run script serves the artifact on d4a-internal and gets healthy" {
-  mkdir -p "$ROOT/artifacts/itdemo"
-  printf '<html><head></head><body>hello-d4a</body></html>' > "$ROOT/artifacts/itdemo/index.html"
-  run env D4A_REMOTE_ROOT="$ROOT" D4A_HEALTH_WAIT=60 bash -c "$LIBS; d4a_gen_run_script itdemo d4a.example.com | bash"
+  mkdir -p "$ROOT/artifacts/$DEMO_SLUG"
+  printf '<html><head></head><body>hello-d4a</body></html>' > "$ROOT/artifacts/$DEMO_SLUG/index.html"
+  run env D4A_REMOTE_ROOT="$ROOT" D4A_HEALTH_WAIT=60 bash -c "$LIBS; d4a_gen_run_script $DEMO_SLUG d4a.example.com | bash"
   [ "$status" -eq 0 ]
   [[ "$output" == *"container=healthy"* ]]
-  run docker inspect -f '{{index .Config.Labels "traefik.enable"}} {{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' d4a-itdemo
+  run docker inspect -f '{{index .Config.Labels "traefik.enable"}} {{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' "d4a-$DEMO_SLUG"
   [ "$output" = "true d4a-internal" ]
-  run docker run --rm --network d4a-internal alpine:3 wget -q -T 5 -O - http://d4a-itdemo/
+  run docker run --rm --network d4a-internal alpine:3 wget -q -T 5 -O - "http://d4a-$DEMO_SLUG/"
+  [ "$status" -eq 0 ]
   [[ "$output" == *"hello-d4a"* ]]
 }
 
 @test "the generated remove script deletes a managed container and its files" {
-  mkdir -p "$ROOT/artifacts/itdemo"
-  printf '<html><head></head><body>x</body></html>' > "$ROOT/artifacts/itdemo/index.html"
-  env D4A_REMOTE_ROOT="$ROOT" D4A_HEALTH_WAIT=60 bash -c "$LIBS; d4a_gen_run_script itdemo d4a.example.com | bash"
-  run env D4A_REMOTE_ROOT="$ROOT" bash -c "$LIBS; d4a_gen_remove_script itdemo | bash"
+  mkdir -p "$ROOT/artifacts/$DEMO_SLUG"
+  printf '<html><head></head><body>x</body></html>' > "$ROOT/artifacts/$DEMO_SLUG/index.html"
+  env D4A_REMOTE_ROOT="$ROOT" D4A_HEALTH_WAIT=60 bash -c "$LIBS; d4a_gen_run_script $DEMO_SLUG d4a.example.com | bash"
+  run env D4A_REMOTE_ROOT="$ROOT" bash -c "$LIBS; d4a_gen_remove_script $DEMO_SLUG | bash"
   [ "$status" -eq 0 ]
-  run docker inspect d4a-itdemo
+  run docker inspect "d4a-$DEMO_SLUG"
   [ "$status" -ne 0 ]
-  [ ! -e "$ROOT/artifacts/itdemo" ]
+  [ ! -e "$ROOT/artifacts/$DEMO_SLUG" ]
 }
 
 @test "the generated remove script refuses a container it did not create" {
-  docker run -d --name d4a-itfake nginx:stable-alpine >/dev/null
-  mkdir -p "$ROOT/artifacts/itfake"
-  run env D4A_REMOTE_ROOT="$ROOT" bash -c "$LIBS; d4a_gen_remove_script itfake | bash"
+  docker run -d --name "d4a-$FAKE_SLUG" nginx:stable-alpine >/dev/null
+  mkdir -p "$ROOT/artifacts/$FAKE_SLUG"
+  run env D4A_REMOTE_ROOT="$ROOT" bash -c "$LIBS; d4a_gen_remove_script $FAKE_SLUG | bash"
   [ "$status" -ne 0 ]
-  docker inspect d4a-itfake >/dev/null
-  [ -d "$ROOT/artifacts/itfake" ]
+  docker inspect "d4a-$FAKE_SLUG" >/dev/null
+  [ -d "$ROOT/artifacts/$FAKE_SLUG" ]
 }
