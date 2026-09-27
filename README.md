@@ -62,6 +62,7 @@ deploy it:
 Claude walks through fetching the artifact, choosing a destination, and
 running the deploy — see `skills/deploy-artifact/SKILL.md` and
 `skills/vps-profiles/SKILL.md` for the exact flow.
+`scripts/deploy-vps.sh` still exists for the v0.1 deploy that copies files to a plain path on the VPS.
 
 ### Deploy to a VPS
 
