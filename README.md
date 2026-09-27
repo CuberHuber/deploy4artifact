@@ -40,9 +40,17 @@ git clone https://github.com/CuberHuber/deploy4artifact.git
 claude --plugin-dir /path/to/deploy4artifact
 ```
 
-Or add it as a plugin marketplace entry pointing at this repository, per
-Claude Code's
-[plugin documentation](https://docs.claude.com/en/docs/claude-code/plugins).
+Or install it as a regular plugin through the marketplace this repository
+declares in `.claude-plugin/marketplace.json`:
+
+```sh
+claude plugin marketplace add CuberHuber/deploy4artifact   # or a local clone path
+claude plugin install deploy4artifact@deploy4artifact
+```
+
+After pulling new commits, refresh it with
+`claude plugin marketplace update deploy4artifact` and
+`claude plugin update deploy4artifact@deploy4artifact`.
 
 ## Usage
 
